@@ -1,0 +1,47 @@
+name: chrono_list
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.2.1
+  table_calendar: ^3.0.9
+  intl: ^0.20.2 
+  hive_flutter: ^1.1.0
+  hive_generator: ^2.0.1
+  installed_apps: 1.6.0
+  process_run: ^1.2.4
+  file_selector: ^1.0.0
+  path_provider: ^2.1.2
+  file_picker: ^10.2.0
+  permission_handler: ^11.4.0
+  easy_folder_picker: ^1.3.1
+  url_launcher: ^6.0.20
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.5.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Baloo2
+      fonts:
+        - asset: assets/fonts/Baloo2-ExtraBold.ttf
+          weight: 100
+  assets:
+    - assets/fonts/
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon2.png"

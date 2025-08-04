@@ -1,0 +1,25 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:background="@android:drawable/dialog_holo_light_frame"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="8dp"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/timerText"
+        android:text="00:00"
+        android:textColor="#FFF"
+        android:textSize="18sp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"/>
+
+    <ImageView
+        android:id="@+id/stopButton"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:tint="#F55"
+        android:layout_width="24dp"
+        android:layout_height="24dp"/>
+
+</LinearLayout>
