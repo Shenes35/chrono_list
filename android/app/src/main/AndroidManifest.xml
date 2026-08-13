@@ -3,9 +3,11 @@
 
     <!-- 〈CHANGE〉1: Accessibility permission must be declared as a uses-permission -->
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 
-    <!-- 〈CHANGE〉2: Foreground service permission -->
+    <!-- Foreground & Vibration permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
 
     <!-- 〈CHANGE〉3: Only necessary storage permissions; remove legacy ones if targeting Android 11+ -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
@@ -17,9 +19,9 @@
     <application
         android:label="chrono_list"
         android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true"
         android:requestLegacyExternalStorage="true"
-        android:allowBackup="true"
-        android:fullBackupContent="@xml/backup_rules">
+        android:allowBackup="true">
 
         <!-- 〈CHANGE〉4: Declare your AccessibilityService -->
         <service

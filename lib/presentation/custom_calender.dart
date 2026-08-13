@@ -8,6 +8,7 @@ Future<DateTime?> showCustomDatePicker({
   required DateTime initialDate,
   required DateTime firstDate,
   required DateTime lastDate,
+  String title = "SELECT DATE",
 }) async {
   DateTime focusedDay = initialDate;
   DateTime? selectedDay = initialDate;
@@ -24,6 +25,7 @@ String? errorText;
 
 
 final focusNode = FocusNode();
+bool focusListenerAdded = false;
   return showDialog<DateTime>(
     context: context,
     builder: (context) {
@@ -41,10 +43,10 @@ final focusNode = FocusNode();
               bottomLeft: Radius.circular(16),
             ),
           ),
-          child: const Center(
+          child: Center(
             child: Text(
-              "SELECT DATE",
-              style: TextStyle(
+              title,
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
@@ -55,7 +57,7 @@ final focusNode = FocusNode();
         
         content: SizedBox(
           width: 250,
-          height: 420,// 🔄 NEW FLAG
+          height: 420,
 
 child: StatefulBuilder(
   
@@ -68,13 +70,8 @@ child: StatefulBuilder(
     final DateTime maxDate = DateTime(lastDate.year, lastDate.month, lastDate.day);
 
     if (!input.isBefore(minDate) && !input.isAfter(maxDate)) {
-      // Step 1: Hide keyboard
       FocusScope.of(context).unfocus();
-
-      // Step 2: Wait until keyboard closes fully
       await Future.delayed(const Duration(milliseconds: 400));
-
-      // Step 3: Delay UI update until next frame
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setState(() {
           focusedDay = input;
@@ -96,13 +93,8 @@ child: StatefulBuilder(
   }
 }
 
-
-
-
-
-
-
-if (!focusNode.hasListeners) {
+if (!focusListenerAdded) {
+  focusListenerAdded = true;
   focusNode.addListener(() {
     setState(() {});
   });
@@ -249,86 +241,80 @@ if (!focusNode.hasListeners) {
                   // 🔁 Conditional: Show year picker instead of calendar
                   Expanded(
                     child: isEditingTextField
-      ? Padding(
-  padding: const EdgeInsets.symmetric(vertical: 16.0),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      TextField(
-  controller: dateInputController, // ✅ Reuse controller
-  focusNode: focusNode,
-  onSubmitted: (_) {
-  handleDateSubmission();
-},
-
-  keyboardType: TextInputType.datetime,
-  decoration: InputDecoration(
-    labelText: 'Enter Date',
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-    ),
-    labelStyle: TextStyle(
-      color: focusNode.hasFocus ? Colors.blue : Colors.black54,
-    ),
-    floatingLabelStyle: TextStyle(
-  color: focusNode.hasFocus ? Colors.blue : Colors.black54,
-  fontWeight: FontWeight.w600,
-),
-
-    focusedBorder: OutlineInputBorder(
-      borderSide: const BorderSide(color: Colors.blue, width: 2),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    hintText: 'dd/MM/yyyy',
-  ),
-  onChanged: (value) {
-  setState(() {
-    inputDate = value;
-    errorText = null; // Clear error when typing
-  });
-},
-
-),
-
-      const SizedBox(height: 8),
-     ElevatedButton(
-  onPressed: handleDateSubmission,
-
-
-  style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.black,
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-    elevation: 4,
-  ),
-  child: Text(
-    "Enter ",
-    style: GoogleFonts.nunito(
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      color: Colors.white,
-      letterSpacing: 0.5,
-    ),
-  ),
-),
-if (errorText != null) ...[
-  const SizedBox(height: 6),
-  Text(
-    errorText!,
-    style: const TextStyle(
-      color: Colors.red,
-      fontWeight: FontWeight.w500,
-    ),
-    textAlign: TextAlign.center,
-  ),
-],
-
-
-    ],
-  ),
-)
+                        ? SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextField(
+                                    controller: dateInputController,
+                                    focusNode: focusNode,
+                                    onSubmitted: (_) {
+                                      handleDateSubmission();
+                                    },
+                                    keyboardType: TextInputType.datetime,
+                                    decoration: InputDecoration(
+                                      labelText: 'Enter Date',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      labelStyle: TextStyle(
+                                        color: focusNode.hasFocus ? Colors.blue : Colors.black54,
+                                      ),
+                                      floatingLabelStyle: TextStyle(
+                                        color: focusNode.hasFocus ? Colors.blue : Colors.black54,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderSide: const BorderSide(color: Colors.blue, width: 2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      hintText: 'dd/MM/yyyy',
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        inputDate = value;
+                                        errorText = null;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ElevatedButton(
+                                    onPressed: handleDateSubmission,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      elevation: 4,
+                                    ),
+                                    child: Text(
+                                      "Enter",
+                                      style: GoogleFonts.nunito(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  if (errorText != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      errorText!,
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          )
 
  :showYearPicker
                         ? GridView.builder(
@@ -470,7 +456,9 @@ if (errorText != null) ...[
       );
     },
   ).then((value) {
-  focusNode.dispose();
-  return value;
-});
+    focusNode.dispose();
+    scrollController.dispose();
+    dateInputController.dispose();
+    return value;
+  });
 }
