@@ -5,9 +5,10 @@
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 
-    <!-- Foreground & Vibration permissions -->
+    <!-- Foreground & Vibration & Notification permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- 〈CHANGE〉3: Only necessary storage permissions; remove legacy ones if targeting Android 11+ -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>

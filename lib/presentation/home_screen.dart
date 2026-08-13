@@ -11,6 +11,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -30,8 +31,14 @@ class _MainScreenState extends State<MainScreen> {
   
 
   Timer? _alarmCheckTimer;
+  final Set<String> _notified15MinTasks = {};
   final Set<String> _notified5MinTasks = {};
   final Set<String> _alarmTriggeredTasks = {};
+
+  final TextEditingController _userNameController = TextEditingController(text: "Alex Mercer");
+  final TextEditingController _userEmailController = TextEditingController(text: "alex.mercer@example.com");
+  final TextEditingController _userPhoneController = TextEditingController(text: "+1 (555) 019-2834");
+  final TextEditingController _userBioController = TextEditingController(text: "Productivity enthusiast & task master.");
 
   @override
   void initState() {
@@ -42,8 +49,55 @@ class _MainScreenState extends State<MainScreen> {
     _alarmCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _checkTaskAlarmsAndNotifications();
     });
+    _restoreServicesOnStartup();
+    _loadUserProfileData();
+  }
+
+  void _loadUserProfileData() async {
     try {
-      const MethodChannel('touch_recorder/methods').invokeMethod('startPersistentService');
+      final box = await Hive.openBox('user_profile_box');
+      if (mounted) {
+        setState(() {
+          _userNameController.text = box.get('name', defaultValue: "Alex Mercer");
+          _userEmailController.text = box.get('email', defaultValue: "alex.mercer@example.com");
+          _userPhoneController.text = box.get('phone', defaultValue: "+1 (555) 019-2834");
+          _userBioController.text = box.get('bio', defaultValue: "Productivity enthusiast & task master.");
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveUserProfileData() async {
+    try {
+      final box = await Hive.openBox('user_profile_box');
+      await box.put('name', _userNameController.text.trim());
+      await box.put('email', _userEmailController.text.trim());
+      await box.put('phone', _userPhoneController.text.trim());
+      await box.put('bio', _userBioController.text.trim());
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("User profile information saved!"),
+            backgroundColor: Color(0xFF1273C2),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _restoreServicesOnStartup() async {
+    try {
+      const methodChannel = MethodChannel('touch_recorder/methods');
+      await methodChannel.invokeMethod('requestNotificationPermission');
+      await methodChannel.invokeMethod('startPersistentService');
+
+      final box = await Hive.openBox('settings_box');
+      final floatEnabled = box.get('floating_volume_enabled', defaultValue: false);
+      if (floatEnabled) {
+        await methodChannel.invokeMethod('toggleVolumeOverlay', {'enable': true});
+      }
     } catch (_) {}
   }
 
@@ -71,9 +125,28 @@ class _MainScreenState extends State<MainScreen> {
       final taskDateTime = DateTime(now.year, now.month, now.day, h, m);
       final diffInSeconds = taskDateTime.difference(now).inSeconds;
 
-      // 1. 5 Minutes Prior Notification
+      // 1. 15 Minutes Prior Notification
+      final notif15Key = "${task.id}_15min_${now.year}${now.month}${now.day}";
+      if (diffInSeconds >= 840 && diffInSeconds <= 960 && !_notified15MinTasks.contains(notif15Key)) {
+        _notified15MinTasks.add(notif15Key);
+        methodChannel.invokeMethod('showNotification', {
+          'title': 'Upcoming Task in 15 Minutes',
+          'message': "'${task.title}' is scheduled for ${DateFormat('hh:mm a').format(taskDateTime)}",
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("⏰ Notification: '${task.title}' starts in 15 minutes!"),
+              backgroundColor: const Color(0xFF1273C2),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+
+      // 2. 5 Minutes Prior Notification
       final notifKey = "${task.id}_5min_${now.year}${now.month}${now.day}";
-      if (diffInSeconds >= 270 && diffInSeconds <= 330 && !_notified5MinTasks.contains(notifKey)) {
+      if (diffInSeconds >= 240 && diffInSeconds <= 360 && !_notified5MinTasks.contains(notifKey)) {
         _notified5MinTasks.add(notifKey);
         methodChannel.invokeMethod('showNotification', {
           'title': 'Upcoming Task in 5 Minutes',
@@ -90,7 +163,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
 
-      // 2. Exact Task Alarm Trigger
+      // 3. Exact Task Alarm Trigger
       final alarmKey = "${task.id}_alarm_${now.year}${now.month}${now.day}_$h:$m";
       if (diffInSeconds.abs() <= 45 && !_alarmTriggeredTasks.contains(alarmKey)) {
         _alarmTriggeredTasks.add(alarmKey);
@@ -512,7 +585,7 @@ IconButton(
                     alignment: Alignment.centerLeft,
                     padding: const EdgeInsets.only(left: 35),
                     child: Text(
-                      'Menu',
+                      'Settings',
                       style: GoogleFonts.baloo2(
                         textStyle: const TextStyle(
                           fontSize: 30,
@@ -524,8 +597,8 @@ IconButton(
                   ),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.settings, color: Colors.black87),
-                  title: Text('Settings', style: GoogleFonts.oxanium(fontWeight: FontWeight.bold)),
+                  leading: const Icon(Icons.volume_up_rounded, color: Colors.black87),
+                  title: Text('Sound', style: GoogleFonts.oxanium(fontWeight: FontWeight.bold)),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -1229,40 +1302,432 @@ IconButton(
   }
 
   Widget _buildNotificationsView() {
-    return Center(
+    final upcomingTasks = taskList.value.where((t) => !t.isCompleted && !t.isSkipped && t.timeToTrigger != null).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.notifications_none, size: 60, color: Colors.black45),
-          const SizedBox(height: 12),
+          // Header Title
           Text(
-            "Notifications",
-            style: GoogleFonts.oxanium(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+            "NOTIFICATIONS & SYSTEM ALERTS",
+            style: GoogleFonts.oxanium(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              color: Colors.black87,
+            ),
           ),
-          const SizedBox(height: 6),
-          const Text("You have no new notifications", style: TextStyle(color: Colors.black54)),
+          const SizedBox(height: 12),
+
+          // Active Background Notification Banner Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F1B2B), Color(0xFF1E293B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.notifications_active, color: Colors.lightBlueAccent, size: 26),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        "Chrono List Service Active",
+                        style: GoogleFonts.oxanium(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      child: const Text("ACTIVE", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Monitoring scheduled task alarms, 15-min / 5-min prior alerts, and gesture automation.",
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1273C2),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () async {
+                          const channel = MethodChannel('touch_recorder/methods');
+                          await channel.invokeMethod('requestNotificationPermission');
+                          await channel.invokeMethod('startPersistentService');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Active Persistent Notification Triggered!")),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                        label: const Text("Refresh Active Notif", style: TextStyle(color: Colors.white, fontSize: 12)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () async {
+                          const channel = MethodChannel('touch_recorder/methods');
+                          await channel.invokeMethod('showNotification', {
+                            'title': 'Chrono List Test Alert',
+                            'message': 'System task notification is functioning properly!',
+                          });
+                        },
+                        icon: const Icon(Icons.send, color: Colors.white, size: 18),
+                        label: const Text("Test System Alert", style: TextStyle(color: Colors.white, fontSize: 12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Upcoming Task Notifications Section
+          Text(
+            "UPCOMING TASK REMINDERS",
+            style: GoogleFonts.oxanium(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          if (upcomingTasks.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.notifications_off_outlined, size: 48, color: Colors.grey),
+                  const SizedBox(height: 8),
+                  Text(
+                    "No upcoming task alarms scheduled",
+                    style: GoogleFonts.oxanium(fontWeight: FontWeight.bold, color: Colors.black54),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: upcomingTasks.length,
+              itemBuilder: (context, index) {
+                final task = upcomingTasks[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade300),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1273C2).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.alarm, color: Color(0xFF1273C2), size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.title,
+                              style: GoogleFonts.oxanium(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Scheduled: ${task.timeToTrigger ?? 'No time set'}",
+                              style: const TextStyle(fontSize: 12, color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1273C2).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          task.soundOrVibration ?? "Alarm",
+                          style: const TextStyle(color: Color(0xFF1273C2), fontWeight: FontWeight.bold, fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
   }
 
   Widget _buildProfileView() {
-    return Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
-            radius: 44,
-            backgroundColor: Color(0xFF0F1B2B),
-            child: Icon(Icons.person, size: 54, color: Colors.white),
+          // Header Card with Avatar
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF282727), Colors.black],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              children: [
+                Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(colors: [Colors.lightBlueAccent, Color(0xFF1273C2)]),
+                      ),
+                      child: const CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Color(0xFF0F1B2B),
+                        child: Icon(Icons.person, size: 50, color: Colors.white),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1273C2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _userNameController.text,
+                  style: GoogleFonts.oxanium(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _userEmailController.text,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.lightBlueAccent.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.lightBlueAccent),
+                  ),
+                  child: const Text(
+                    "ACTIVE USER PROFILE",
+                    style: TextStyle(color: Colors.lightBlueAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
+
+          // User Personal Information Form Card
           Text(
-            "User Profile",
-            style: GoogleFonts.oxanium(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+            "USER PERSONAL INFORMATION",
+            style: GoogleFonts.oxanium(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              color: Colors.black87,
+            ),
           ),
-          const SizedBox(height: 6),
-          const Text("Chrono List User", style: TextStyle(color: Colors.black54, fontSize: 14)),
+          const SizedBox(height: 10),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade300),
+              boxShadow: const [
+                BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Full Name
+                const Text("Full Name", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _userNameController,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF1273C2)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Email Address
+                const Text("Email Address", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _userEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF1273C2)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Phone Number
+                const Text("Phone Number", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _userPhoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFF1273C2)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Bio
+                const Text("Bio & Personal Notes", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _userBioController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.note_alt_outlined, color: Color(0xFF1273C2)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Save Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1273C2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: _saveUserProfileData,
+                    icon: const Icon(Icons.save, color: Colors.white, size: 20),
+                    label: Text(
+                      "Save Profile Changes",
+                      style: GoogleFonts.oxanium(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Account Data Card
+          Text(
+            "ACCOUNT & MEMBERSHIP",
+            style: GoogleFonts.oxanium(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              children: const [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.verified_user_outlined, color: Colors.green),
+                  title: Text("Account Type", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  trailing: Text("Standard User", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                ),
+                Divider(),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.calendar_today_outlined, color: Colors.blue),
+                  title: Text("Member Since", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  trailing: Text("August 2026", style: TextStyle(color: Colors.black54)),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

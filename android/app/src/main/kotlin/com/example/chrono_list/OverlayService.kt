@@ -52,6 +52,33 @@ class OverlayService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         Log.d("OverlayService", "Accessibility Service connected")
+        showPersistentActiveNotification()
+    }
+
+    fun showPersistentActiveNotification() {
+        try {
+            val channelId = "chrono_list_persistent_active"
+            val notificationManager = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = android.app.NotificationChannel(
+                    channelId,
+                    "Background Active Service",
+                    android.app.NotificationManager.IMPORTANCE_DEFAULT
+                )
+                channel.description = "Persistent background service for Chrono List task monitoring"
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val builder = androidx.core.app.NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle("Chrono List is currently active")
+                .setContentText("Monitoring scheduled task alarms & gesture automation")
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
+                .setOngoing(true)
+
+            notificationManager.notify(9999, builder.build())
+        } catch (_: Exception) {}
     }
 
     override fun onUnbind(intent: Intent?): Boolean {

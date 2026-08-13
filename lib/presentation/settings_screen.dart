@@ -10,7 +10,7 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver {
   String _selectedAlarmSound = "Default Alarm Sound";
   int _alarmDurationSeconds = 10;
   double _alarmVolume = 0.8;
@@ -34,7 +34,33 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadSavedSettings();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncFloatingVolumeState();
+    }
+  }
+
+  Future<void> _syncFloatingVolumeState() async {
+    try {
+      final isShowing = await _methodChannel.invokeMethod<bool>('isVolumeOverlayShowing') ?? false;
+      if (mounted) {
+        setState(() {
+          _floatingVolumeEnabled = isShowing;
+        });
+        _saveSetting('floating_volume_enabled', isShowing);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadSavedSettings() async {
@@ -43,8 +69,15 @@ class _SettingsPageState extends State<SettingsPage> {
       final savedVolumeEnabled = box.get('floating_volume_enabled', defaultValue: false);
       bool isShowing = false;
       try {
-        isShowing = await _methodChannel.invokeMethod('isVolumeOverlayShowing') ?? false;
+        isShowing = await _methodChannel.invokeMethod<bool>('isVolumeOverlayShowing') ?? false;
       } catch (_) {}
+
+      final activeState = savedVolumeEnabled || isShowing;
+      if (savedVolumeEnabled && !isShowing) {
+        try {
+          await _methodChannel.invokeMethod('toggleVolumeOverlay', {'enable': true});
+        } catch (_) {}
+      }
 
       if (mounted) {
         setState(() {
@@ -53,7 +86,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _alarmVolume = (box.get('alarm_volume', defaultValue: 0.8) as num).toDouble();
           _vibrationEnabled = box.get('vibration_enabled', defaultValue: true);
           _notificationsEnabled = box.get('notifications_enabled', defaultValue: true);
-          _floatingVolumeEnabled = savedVolumeEnabled || isShowing;
+          _floatingVolumeEnabled = activeState;
         });
       }
     } catch (_) {}
@@ -63,19 +96,29 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _floatingVolumeEnabled = val;
     });
-    _saveSetting('floating_volume_enabled', val);
 
     try {
-      await _methodChannel.invokeMethod('toggleVolumeOverlay', {'enable': val});
+      final result = await _methodChannel.invokeMethod<bool>('toggleVolumeOverlay', {'enable': val});
+      final actualState = result ?? val;
+      _saveSetting('floating_volume_enabled', actualState);
       if (mounted) {
+        setState(() {
+          _floatingVolumeEnabled = actualState;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(val ? "Floating Volume Button Activated!" : "Floating Volume Button Disabled"),
+            content: Text(actualState ? "Floating Volume Button Activated!" : "Floating Volume Button Disabled"),
             duration: const Duration(seconds: 2),
           ),
         );
       }
     } on PlatformException catch (e) {
+      _saveSetting('floating_volume_enabled', false);
+      if (mounted) {
+        setState(() {
+          _floatingVolumeEnabled = false;
+        });
+      }
       if (e.code == "OVERLAY_PERMISSION_REQUIRED") {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -91,7 +134,14 @@ class _SettingsPageState extends State<SettingsPage> {
           );
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      _saveSetting('floating_volume_enabled', false);
+      if (mounted) {
+        setState(() {
+          _floatingVolumeEnabled = false;
+        });
+      }
+    }
   }
 
   Future<void> _adjustVolumeDirectly(String action) async {
@@ -149,7 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Settings',
+                      'Sound Settings',
                       style: GoogleFonts.oxanium(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,

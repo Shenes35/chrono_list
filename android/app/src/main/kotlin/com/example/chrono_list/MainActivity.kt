@@ -29,6 +29,25 @@ class MainActivity : FlutterActivity() {
         val handler = MethodChannel.MethodCallHandler { call, result ->
             when (call.method) {
                 "startPersistentService" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+                    }
+                    showPersistentActiveNotification()
+                    result.success(true)
+                }
+                "checkNotificationPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        val granted = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        result.success(granted)
+                    } else {
+                        result.success(true)
+                    }
+                }
+                "requestNotificationPermission" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+                    }
                     showPersistentActiveNotification()
                     result.success(true)
                 }
@@ -409,7 +428,7 @@ class MainActivity : FlutterActivity() {
                 val channel = android.app.NotificationChannel(
                     channelId,
                     "Background Active Service",
-                    android.app.NotificationManager.IMPORTANCE_LOW
+                    android.app.NotificationManager.IMPORTANCE_DEFAULT
                 )
                 channel.description = "Persistent background service for Chrono List task monitoring"
                 notificationManager.createNotificationChannel(channel)
@@ -419,7 +438,7 @@ class MainActivity : FlutterActivity() {
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle("Chrono List is currently active")
                 .setContentText("Monitoring scheduled task alarms & gesture automation")
-                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
                 .setOngoing(true)
 
             notificationManager.notify(9999, builder.build())

@@ -102,13 +102,13 @@ class FloatingVolumeOverlay(private val context: Context) {
 
     private fun buildOverlayView(): View {
         val rootLayout = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(14, 10, 14, 10)
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(10, 12, 10, 12)
 
             val background = GradientDrawable().apply {
                 setColor(Color.parseColor("#EE1E293B")) // dark slate background
-                cornerRadius = 60f
+                cornerRadius = 45f
                 setStroke(3, Color.parseColor("#3B82F6")) // vibrant blue border accent
             }
             setBackground(background)
@@ -119,42 +119,23 @@ class FloatingVolumeOverlay(private val context: Context) {
             text = "🔊"
             textSize = 22f
             gravity = Gravity.CENTER
-            setPadding(14, 8, 14, 8)
+            setPadding(10, 8, 10, 8)
             setTextColor(Color.WHITE)
         }
 
         val panel = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
             visibility = View.GONE
         }
         expandedPanel = panel
 
-        val btnDown = TextView(context).apply {
-            text = " ➖ "
-            textSize = 20f
-            setTextColor(Color.WHITE)
-            setPadding(10, 8, 10, 8)
-            setOnClickListener {
-                adjustVolume(AudioManager.ADJUST_LOWER)
-                resetCollapseTimer()
-                updateVolumeText()
-            }
-        }
-
-        val volText = TextView(context).apply {
-            text = getVolumePercentText()
-            textSize = 14f
-            setTextColor(Color.parseColor("#38BDF8"))
-            setPadding(6, 0, 6, 0)
-        }
-        txtVolume = volText
-
         val btnUp = TextView(context).apply {
-            text = " ➕ "
+            text = "➕"
             textSize = 20f
+            gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            setPadding(10, 8, 10, 8)
+            setPadding(10, 10, 10, 10)
             setOnClickListener {
                 adjustVolume(AudioManager.ADJUST_RAISE)
                 resetCollapseTimer()
@@ -162,11 +143,34 @@ class FloatingVolumeOverlay(private val context: Context) {
             }
         }
 
-        val btnMute = TextView(context).apply {
-            text = " 🔇 "
-            textSize = 18f
+        val volText = TextView(context).apply {
+            text = getVolumePercentText()
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(4, 6, 4, 6)
+        }
+        txtVolume = volText
+
+        val btnDown = TextView(context).apply {
+            text = "➖"
+            textSize = 20f
+            gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            setPadding(8, 8, 8, 8)
+            setPadding(10, 10, 10, 10)
+            setOnClickListener {
+                adjustVolume(AudioManager.ADJUST_LOWER)
+                resetCollapseTimer()
+                updateVolumeText()
+            }
+        }
+
+        val btnMute = TextView(context).apply {
+            text = "🔇"
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setPadding(10, 10, 10, 10)
             setOnClickListener {
                 toggleMute()
                 resetCollapseTimer()
@@ -174,9 +178,9 @@ class FloatingVolumeOverlay(private val context: Context) {
             }
         }
 
-        panel.addView(btnDown)
-        panel.addView(volText)
         panel.addView(btnUp)
+        panel.addView(volText)
+        panel.addView(btnDown)
         panel.addView(btnMute)
 
         rootLayout.addView(mainIconButton)
